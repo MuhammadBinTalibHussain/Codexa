@@ -37,5 +37,6 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
-reviewSchema.index({ snippet: 1 }); chema.index({ reviewer: 1 }); 
+reviewSchema.index({ snippet: 1 });
+reviewSchema.index({ reviewer: 1 });
 module.exports = mongoose.model("Review", reviewSchema);

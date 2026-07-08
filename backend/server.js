@@ -10,7 +10,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
+generateToken.js
 app.get("/", (req, res) => {
   res.send("CodePulse Backend Running");
 });
