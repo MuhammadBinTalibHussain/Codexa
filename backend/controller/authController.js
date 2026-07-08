@@ -11,7 +11,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "Username, email and password are all required" });
     }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    // Guard against non-string payloads (e.g. NoSQL injection via objects like { "$gt": "" })
+    if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Username, email and password must be strings" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim();
+
+    const existingUser = await User.findOne({ $or: [{ email: normalizedEmail }, { username: normalizedUsername }] });
     if (existingUser) {
       return res.status(409).json({ message: "Username or email is already registered" });
     }
@@ -19,7 +27,7 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const user = await User.create({ username, email, passwordHash });
+    const user = await User.create({ username: normalizedUsername, email: normalizedEmail, passwordHash });
 
     res.status(201).json({
       message: "User registered successfully",
@@ -45,8 +53,15 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
+    // Guard against non-string payloads (e.g. NoSQL injection via objects like { "$gt": "" })
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Email and password must be strings" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
     // passwordHash has select:false on the schema, so it must be explicitly requested
-    const user = await User.findOne({ email }).select("+passwordHash");
+    const user = await User.findOne({ email: normalizedEmail }).select("+passwordHash");
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }

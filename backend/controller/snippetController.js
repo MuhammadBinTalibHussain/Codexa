@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Snippet = require("../models/Snippet");
 const asyncHandler = require("../utils/asyncHandler");
+const { ALLOWED_LANGUAGES } = require("../middleware/validators");
 
 // @route  GET /api/snippets
 const getSnippets = asyncHandler(async (req, res) => {
@@ -49,9 +50,32 @@ const updateSnippet = asyncHandler(async (req, res) => {
     return res.status(403).json({ status: "error", data: null, message: "Only the author can update this snippet" });
   }
   const { title, code, language } = req.body;
-  if (title !== undefined) snippet.title = title;
-  if (code !== undefined) snippet.code = code;
-  if (language !== undefined) snippet.language = language.toLowerCase();
+
+  if (title !== undefined) {
+    if (typeof title !== "string" || !title.trim()) {
+      return res.status(400).json({ status: "error", data: null, message: "Title must be a non-empty string" });
+    }
+    snippet.title = title;
+  }
+
+  if (code !== undefined) {
+    if (typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ status: "error", data: null, message: "Code must be a non-empty string" });
+    }
+    snippet.code = code;
+  }
+
+  if (language !== undefined) {
+    if (typeof language !== "string" || !ALLOWED_LANGUAGES.includes(language.toLowerCase())) {
+      return res.status(400).json({
+        status: "error",
+        data: null,
+        message: `Language must be one of: ${ALLOWED_LANGUAGES.join(", ")}`,
+      });
+    }
+    snippet.language = language.toLowerCase();
+  }
+
   const updated = await snippet.save();
   res.status(200).json({ status: "success", data: updated, message: "Snippet updated successfully" });
 });
