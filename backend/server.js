@@ -1,4 +1,5 @@
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
@@ -10,6 +11,7 @@ const aiReportRoutes = require("./routes/aiReportRoutes");
 
 const apiLimiter = require("./middleware/rateLimiter");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
+const initSocket = require("./socket");
 
 dotenv.config();
 
@@ -33,10 +35,13 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
+const httpServer = http.createServer(app);
+initSocket(httpServer);
+
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} (HTTP + Socket.IO)`);
   });
 };
 
