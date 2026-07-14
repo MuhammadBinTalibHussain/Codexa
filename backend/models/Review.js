@@ -31,6 +31,28 @@ const reviewSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    unhelpfulVotes: {
+      type: Number,
+      default: 0,
+    },
+    // Tracks exactly one active vote per user (helpful or unhelpful) so that
+    // a single user can't like/dislike the same review multiple times, and
+    // switching from like -> dislike (or vice versa) correctly removes the
+    // old vote instead of just adding to both counters.
+    voters: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        vote: {
+          type: String,
+          enum: ["helpful", "unhelpful"],
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
@@ -39,4 +61,5 @@ const reviewSchema = new mongoose.Schema(
 
 reviewSchema.index({ snippet: 1 });
 reviewSchema.index({ reviewer: 1 });
+reviewSchema.index({ "voters.user": 1 });
 module.exports = mongoose.model("Review", reviewSchema);

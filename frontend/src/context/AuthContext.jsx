@@ -5,10 +5,10 @@ export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem("codepulse_user");
+    const stored = localStorage.getItem("codexa_user");
     return stored ? JSON.parse(stored) : null;
   });
-  const [token, setToken] = useState(() => localStorage.getItem("codepulse_token"));
+  const [token, setToken] = useState(() => localStorage.getItem("codexa_token"));
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -20,12 +20,12 @@ export const AuthProvider = ({ children }) => {
       try {
         const { user: freshUser } = await authService.getMe();
         setUser(freshUser);
-        localStorage.setItem("codepulse_user", JSON.stringify(freshUser));
+        localStorage.setItem("codexa_user", JSON.stringify(freshUser));
       } catch {
         setUser(null);
         setToken(null);
-        localStorage.removeItem("codepulse_token");
-        localStorage.removeItem("codepulse_user");
+        localStorage.removeItem("codexa_token");
+        localStorage.removeItem("codexa_user");
       } finally {
         setAuthLoading(false);
       }
@@ -38,8 +38,8 @@ export const AuthProvider = ({ children }) => {
     const data = await authService.login(email, password);
     setUser(data.user);
     setToken(data.token);
-    localStorage.setItem("codepulse_token", data.token);
-    localStorage.setItem("codepulse_user", JSON.stringify(data.user));
+    localStorage.setItem("codexa_token", data.token);
+    localStorage.setItem("codexa_user", JSON.stringify(data.user));
     return data.user;
   }, []);
 
@@ -50,8 +50,8 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem("codepulse_token");
-    localStorage.removeItem("codepulse_user");
+    localStorage.removeItem("codexa_token");
+    localStorage.removeItem("codexa_user");
     authService.logout().catch(() => {});
   }, []);
 

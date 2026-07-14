@@ -63,13 +63,63 @@ const deleteReview = asyncHandler(async (req, res) => {
   res.status(200).json({ status: "success", data: { id: req.params.id }, message: "Review deleted successfully" });
 });
 
-// @route  POST /api/reviews/:id/helpful
-const markHelpful = asyncHandler(async (req, res) => {
-  const review = await Review.findByIdAndUpdate(req.params.id, { $inc: { helpfulVotes: 1 } }, { new: true });
+// Shared logic for both markHelpful and markUnhelpful.
+// Each user may only have ONE active vote (helpful or unhelpful) on a review:
+//   - No existing vote            -> add the new vote, bump that counter by 1
+//   - Existing vote is the SAME   -> clicking again removes it (un-vote / toggle off)
+//   - Existing vote is DIFFERENT  -> switch vote: decrement the old counter,
+//                                    increment the new counter (this is the
+//                                    "like -> dislike should minus the like" fix)
+const applyVote = async (req, res, voteType, successMessage) => {
+  const review = await Review.findById(req.params.id);
   if (!review) {
     return res.status(404).json({ status: "error", data: null, message: "Review not found" });
   }
-  res.status(200).json({ status: "success", data: review, message: "Helpful vote recorded" });
+
+  const userId = req.user._id.toString();
+  const existingIndex = review.voters.findIndex((v) => v.user.toString() === userId);
+  const existingVote = existingIndex > -1 ? review.voters[existingIndex].vote : null;
+
+  if (existingVote === voteType) {
+    // Same button clicked again -> remove the vote entirely.
+    review.voters.splice(existingIndex, 1);
+    if (voteType === "helpful") {
+      review.helpfulVotes = Math.max(0, review.helpfulVotes - 1);
+    } else {
+      review.unhelpfulVotes = Math.max(0, review.unhelpfulVotes - 1);
+    }
+  } else if (existingVote) {
+    // Switching from one vote to the other.
+    review.voters[existingIndex].vote = voteType;
+    if (voteType === "helpful") {
+      review.helpfulVotes += 1;
+      review.unhelpfulVotes = Math.max(0, review.unhelpfulVotes - 1);
+    } else {
+      review.unhelpfulVotes += 1;
+      review.helpfulVotes = Math.max(0, review.helpfulVotes - 1);
+    }
+  } else {
+    // First time this user is voting on this review.
+    review.voters.push({ user: req.user._id, vote: voteType });
+    if (voteType === "helpful") {
+      review.helpfulVotes += 1;
+    } else {
+      review.unhelpfulVotes += 1;
+    }
+  }
+
+  await review.save();
+  res.status(200).json({ status: "success", data: review, message: successMessage });
+};
+
+// @route  POST /api/reviews/:id/helpful
+const markHelpful = asyncHandler(async (req, res) => {
+  await applyVote(req, res, "helpful", "Helpful vote recorded");
 });
 
-module.exports = { getReviewsForSnippet, createReview, updateReview, deleteReview, markHelpful };
+// @route  POST /api/reviews/:id/unhelpful
+const markUnhelpful = asyncHandler(async (req, res) => {
+  await applyVote(req, res, "unhelpful", "Dislike vote recorded");
+});
+
+module.exports = { getReviewsForSnippet, createReview, updateReview, deleteReview, markHelpful, markUnhelpful };

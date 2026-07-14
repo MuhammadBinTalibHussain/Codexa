@@ -6,7 +6,7 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("codepulse_token");
+  const token = localStorage.getItem("codexa_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -17,8 +17,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("codepulse_token");
-      localStorage.removeItem("codepulse_user");
+      localStorage.removeItem("codexa_token");
+      localStorage.removeItem("codexa_user");
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }

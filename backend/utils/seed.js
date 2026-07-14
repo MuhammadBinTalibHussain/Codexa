@@ -21,8 +21,8 @@ const seedData = async () => {
     const passwordHash = await bcrypt.hash("Password123!", 12);
     const users = await User.create([
       { username: "Muhammad_admin", email: "muhammadtalibhussain56@gmail.com", passwordHash, role: "admin" },
-      { username: "HuzaifaCodes", email: "uzaifa@codepulse.dev", passwordHash, role: "user" },
-      { username: "alireviews", email: "ali@codepulse.dev", passwordHash, role: "user" },
+      { username: "HuzaifaCodes", email: "uzaifa@codexa.dev", passwordHash, role: "user" },
+      { username: "alireviews", email: "ali@codexa.dev", passwordHash, role: "user" },
     ]);
 
     const snippets = await Snippet.create([

@@ -22,7 +22,7 @@ app.use(express.json());
 app.use(apiLimiter);
 
 app.get("/", (req, res) => {
-  res.send("CodePulse Backend Running");
+  res.send("Codexa Backend Running");
 });
 
 app.use("/api/auth", authRoutes);

@@ -64,51 +64,66 @@ const SnippetForm = () => {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">
+      <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">
         {isEditMode ? "Edit snippet" : "Share a new snippet"}
       </h1>
 
       {error && <div className="mb-4"><ErrorBanner message={error} /></div>}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
           Title
           <input
-            type="text" name="title" required maxLength={120} value={form.title} onChange={handleChange}
+            type="text"
+            name="title"
+            required
+            maxLength={120}
+            value={form.title}
+            onChange={handleChange}
             placeholder="e.g. Debounce function"
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
           Language
           <select
-            name="language" value={form.language} onChange={handleChange}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+            name="language"
+            value={form.language}
+            onChange={handleChange}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           >
-            {ALLOWED_LANGUAGES.map((lang) => <option key={lang} value={lang}>{lang}</option>)}
+            {ALLOWED_LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>{lang}</option>
+            ))}
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
           Code
           <textarea
-            name="code" required rows={12} value={form.code} onChange={handleChange}
+            name="code"
+            required
+            rows={12}
+            value={form.code}
+            onChange={handleChange}
             placeholder="Paste your code here..."
-            className="scroll-thin rounded-lg border border-gray-300 bg-gray-900 px-3 py-2 font-mono text-sm text-gray-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+            className="scroll-thin rounded-lg border border-gray-300 bg-gray-900 px-3 py-2 font-mono text-sm text-gray-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-gray-700 dark:bg-black"
           />
         </label>
 
         <div className="flex gap-3">
           <button
-            type="submit" disabled={submitting}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-600"
           >
             {submitting ? "Saving..." : isEditMode ? "Save changes" : "Publish snippet"}
           </button>
           <button
-            type="button" onClick={() => navigate(-1)}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Cancel
           </button>
