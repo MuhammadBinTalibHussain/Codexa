@@ -1,65 +1,147 @@
-const AIReport = require("../models/AIReport");
-const Snippet = require("../models/Snippet");
-const asyncHandler = require("../utils/asyncHandler");
-const { generateAnalysis, AIAnalysisError } = require("../services/aiReportService");
-const notify = require("../utils/notify");
+const OpenAI = require("openai");
 
-// @route  GET /api/reports/snippet/:id
-const getReportForSnippet = asyncHandler(async (req, res) => {
-    const report = await AIReport.findOne({ snippet: req.params.id });
-    if (!report) {
-        return res.status(404).json({ status: "error", data: null, message: "No AI report exists for this snippet yet" });
+// Thrown for any AI-analysis failure (missing key, bad input, malformed AI
+// response, etc). The controller maps `status` to an HTTP status code and
+// never stores a report when this is thrown, per the "no partial or
+// malformed reports are stored" requirement.
+class AIAnalysisError extends Error {
+  constructor(message, status = 422) {
+    super(message);
+    this.name = "AIAnalysisError";
+    this.status = status;
+  }
+}
+
+let client = null;
+const getClient = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new AIAnalysisError("AI analysis is not configured on the server (missing OPENAI_API_KEY)", 500);
+  }
+  if (!client) {
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return client;
+};
+
+const MAX_CODE_LENGTH = 12000; // guard against oversized payloads / runaway token cost
+
+const SYSTEM_PROMPT = `You are a senior software engineer acting as an automated code quality analyzer.
+
+You will be given a code snippet and its language. Analyze it and respond with ONLY a single JSON object (no markdown fences, no prose before or after) matching exactly this shape:
+
+{
+  "readability": <integer 0-100>,
+  "maintainability": <integer 0-100>,
+  "performance": <integer 0-100>,
+  "overall": <integer 0-100, a weighted composite of the other three>,
+  "suggestions": [<3 to 6 short, specific, actionable strings>]
+}
+
+Scoring guidance:
+- readability: clarity of naming, structure, and comments.
+- maintainability: how easy the code is to modify or extend safely.
+- performance: efficiency of the logic and avoidance of costly patterns.
+- overall: your weighted judgment across the three dimensions above.
+
+Edge cases:
+- If the input is empty, not actual source code, or is unintelligible/binary-looking text, do NOT invent plausible-sounding scores. Instead return "overall": 0 for all four scores and a single suggestions entry explaining that no valid code could be analyzed.
+- Never include any text outside the JSON object.`;
+
+// Crude heuristic to catch obviously binary content before spending an API
+// call on it: null bytes, or a high ratio of non-printable characters.
+const looksBinary = (code) => {
+  if (code.includes("\u0000")) return true;
+  const nonPrintable = code.replace(/[\t\n\r\x20-\x7E]/g, "");
+  return code.length > 0 && nonPrintable.length / code.length > 0.3;
+};
+
+const clampScore = (n) => {
+  const num = Number(n);
+  if (Number.isNaN(num)) return 0;
+  return Math.max(0, Math.min(100, Math.round(num)));
+};
+
+const validateAndNormalize = (parsed) => {
+  if (!parsed || typeof parsed !== "object") {
+    throw new AIAnalysisError("AI response was not a valid JSON object", 502);
+  }
+
+  const { readability, maintainability, performance, overall, suggestions } = parsed;
+  const scoreFields = { readability, maintainability, performance, overall };
+
+  for (const [key, value] of Object.entries(scoreFields)) {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      throw new AIAnalysisError(`AI response is missing a valid "${key}" score`, 502);
     }
-    res.status(200).json({ status: "success", data: report, message: "AI report fetched successfully" });
-});
+  }
 
-// @route  POST /api/reports/generate/:id
-const generateReport = asyncHandler(async (req, res) => {
-    const snippet = await Snippet.findById(req.params.id);
-    if (!snippet) {
-        return res.status(404).json({ status: "error", data: null, message: "Snippet not found" });
-    }
+  if (!Array.isArray(suggestions) || suggestions.some((s) => typeof s !== "string")) {
+    throw new AIAnalysisError("AI response is missing a valid suggestions list", 502);
+  }
 
-    let analysis;
-    try {
-        analysis = await generateAnalysis(snippet);
-    } catch (err) {
-        // Any failure here (empty/binary code, AI request failure, malformed or
-        // unvalidated AI response) must NOT result in a stored report.
-        if (err instanceof AIAnalysisError) {
-            return res.status(err.status).json({ status: "error", data: null, message: err.message });
-        }
-        return res.status(500).json({ status: "error", data: null, message: "AI analysis failed unexpectedly" });
-    }
+  const cleanSuggestions = suggestions.map((s) => s.trim()).filter(Boolean);
 
-    const report = await AIReport.findOneAndUpdate(
-        { snippet: snippet._id },
-        { snippet: snippet._id, ...analysis },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+  return {
+    readability: clampScore(readability),
+    maintainability: clampScore(maintainability),
+    performance: clampScore(performance),
+    overall: clampScore(overall),
+    suggestions: cleanSuggestions.length > 0 ? cleanSuggestions.slice(0, 6) : ["No major issues detected"],
+  };
+};
 
-    await notify({
-        recipientId: snippet.author,
-        actorId: req.user._id,
-        type: "ai-report",
-        message: `An AI report has been generated for your snippet "${snippet.title}"`,
-        link: `/snippets/${snippet._id}`,
+// Calls the OpenAI API to analyze a snippet's code and returns a validated,
+// normalized analysis object ready to be stored as an AIReport.
+// Throws AIAnalysisError for empty/binary input or any failure to get a
+// valid, schema-conforming response from the model.
+const generateAnalysis = async (snippet) => {
+  const code = (snippet.code || "").toString();
+  const trimmed = code.trim();
+
+  if (!trimmed) {
+    throw new AIAnalysisError("Cannot analyze an empty snippet");
+  }
+  if (looksBinary(code)) {
+    throw new AIAnalysisError("This snippet looks like binary content and cannot be analyzed");
+  }
+
+  const truncatedCode = code.length > MAX_CODE_LENGTH
+    ? `${code.slice(0, MAX_CODE_LENGTH)}\n/* ...truncated for analysis... */`
+    : code;
+
+  const openai = getClient();
+
+  let completion;
+  try {
+    completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Language: ${snippet.language || "unknown"}\n\nAnalyze this code snippet:\n\n${truncatedCode}`,
+        },
+      ],
     });
+  } catch (err) {
+    throw new AIAnalysisError(`AI service request failed: ${err.message}`, 502);
+  }
 
-    res.status(201).json({ status: "success", data: report, message: "AI report generated successfully" });
-});
+  const raw = completion.choices?.[0]?.message?.content;
+  if (!raw) {
+    throw new AIAnalysisError("AI service returned an empty response", 502);
+  }
 
-// @route  DELETE /api/reports/:id (admin only)
-const deleteReport = asyncHandler(async (req, res) => {
-    if (req.user.role !== "admin") {
-        return res.status(403).json({ status: "error", data: null, message: "Only an admin can delete AI reports" });
-    }
-    const report = await AIReport.findById(req.params.id);
-    if (!report) {
-        return res.status(404).json({ status: "error", data: null, message: "AI report not found" });
-    }
-    await report.deleteOne();
-    res.status(200).json({ status: "success", data: { id: req.params.id }, message: "AI report deleted successfully" });
-});
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new AIAnalysisError("AI response could not be parsed as JSON", 502);
+  }
 
-module.exports = { getReportForSnippet, generateReport, deleteReport };
+  return validateAndNormalize(parsed);
+};
+
+module.exports = { generateAnalysis, AIAnalysisError };
