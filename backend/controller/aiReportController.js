@@ -1,7 +1,8 @@
 const AIReport = require("../models/AIReport");
 const Snippet = require("../models/Snippet");
 const asyncHandler = require("../utils/asyncHandler");
-const { generateMockAnalysis } = require("../services/aiReportService");
+const { generateAnalysis, AIAnalysisError } = require("../services/aiReportService");
+const notify = require("../utils/notify");
 
 // @route  GET /api/reports/snippet/:id
 const getReportForSnippet = asyncHandler(async (req, res) => {
@@ -18,12 +19,33 @@ const generateReport = asyncHandler(async (req, res) => {
     if (!snippet) {
         return res.status(404).json({ status: "error", data: null, message: "Snippet not found" });
     }
-    const analysis = generateMockAnalysis(snippet);
+
+    let analysis;
+    try {
+        analysis = await generateAnalysis(snippet);
+    } catch (err) {
+        // Any failure here (empty/binary code, AI request failure, malformed or
+        // unvalidated AI response) must NOT result in a stored report.
+        if (err instanceof AIAnalysisError) {
+            return res.status(err.status).json({ status: "error", data: null, message: err.message });
+        }
+        return res.status(500).json({ status: "error", data: null, message: "AI analysis failed unexpectedly" });
+    }
+
     const report = await AIReport.findOneAndUpdate(
         { snippet: snippet._id },
         { snippet: snippet._id, ...analysis },
         { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+
+    await notify({
+        recipientId: snippet.author,
+        actorId: req.user._id,
+        type: "ai-report",
+        message: `An AI report has been generated for your snippet "${snippet.title}"`,
+        link: `/snippets/${snippet._id}`,
+    });
+
     res.status(201).json({ status: "success", data: report, message: "AI report generated successfully" });
 });
 

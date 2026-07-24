@@ -14,9 +14,25 @@ import ScoreBar from "../components/ScoreBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
+// Maps an overall AI score to a plain-language quality label, per the
+// Week 5 spec (e.g. Good, Needs Improvement, Poor).
+const getQualityLabel = (overall) => {
+  if (overall >= 85) return "Excellent";
+  if (overall >= 70) return "Good";
+  if (overall >= 50) return "Needs Improvement";
+  return "Poor";
+};
+
+const getQualityLabelStyle = (overall) => {
+  if (overall >= 85) return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+  if (overall >= 70) return "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300";
+  if (overall >= 50) return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+  return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+};
+
 const SnippetDetail = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
 
@@ -26,9 +42,11 @@ const SnippetDetail = () => {
 
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(true);
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState(null);
 
   const { reviews, loading: reviewsLoading, error: reviewsError, refetch: refetchReviews } = useReviews(id);
-  const { comments, connected, sendComment } = useLiveComments(id, user?.username);
+  const { comments, connected, sendComment, typingUsers, activeUsers, notifyTyping } = useLiveComments(id, user?.username, token);
 
   const [reviewForm, setReviewForm] = useState({ comment: "", rating: 5 });
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
@@ -108,14 +126,15 @@ const SnippetDetail = () => {
   };
 
   const handleGenerateReport = async () => {
-    setReportLoading(true);
+    setReportGenerating(true);
+    setReportError(null);
     try {
       const { data } = await reportService.generate(id);
       setReport(data);
     } catch (err) {
-      setSnippetError(err.response?.data?.message || "Failed to generate AI report");
+      setReportError(err.response?.data?.message || "Failed to generate AI report");
     } finally {
-      setReportLoading(false);
+      setReportGenerating(false);
     }
   };
 
@@ -248,6 +267,7 @@ const SnippetDetail = () => {
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <h2 className="mb-3 font-semibold text-gray-900 dark:text-gray-100">AI Report</h2>
             {reportLoading && <LoadingSpinner label="Checking for a report..." />}
+            {reportError && <div className="mb-3"><ErrorBanner message={reportError} /></div>}
             {!reportLoading && !report && (
               <div>
                 <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
@@ -257,9 +277,10 @@ const SnippetDetail = () => {
                   <button
                     type="button"
                     onClick={handleGenerateReport}
-                    className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
+                    disabled={reportGenerating}
+                    className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-600"
                   >
-                    Generate AI report
+                    {reportGenerating ? "Analyzing..." : "Generate AI report"}
                   </button>
                 )}
               </div>
@@ -269,11 +290,29 @@ const SnippetDetail = () => {
                 <ScoreBar label="Readability" value={report.readability} />
                 <ScoreBar label="Maintainability" value={report.maintainability} />
                 <ScoreBar label="Performance" value={report.performance} />
-                <ScoreBar label="Overall" value={report.overall} />
+                <div>
+                  <ScoreBar label="Overall" value={report.overall} />
+                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${getQualityLabelStyle(report.overall)}`}>
+                    {getQualityLabel(report.overall)}
+                  </span>
+                </div>
                 {report.suggestions?.length > 0 && (
                   <ul className="mt-2 list-inside list-disc text-sm text-gray-600 dark:text-gray-300">
                     {report.suggestions.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
+                )}
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Last generated: {new Date(report.createdAt).toLocaleString()}
+                </p>
+                {user && (
+                  <button
+                    type="button"
+                    onClick={handleGenerateReport}
+                    disabled={reportGenerating}
+                    className="mt-1 self-start rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    {reportGenerating ? "Analyzing..." : "Re-analyze"}
+                  </button>
                 )}
               </div>
             )}
@@ -281,7 +320,14 @@ const SnippetDetail = () => {
 
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Live comments</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+                Live comments
+                {activeUsers.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
+                    {activeUsers.length} active
+                  </span>
+                )}
+              </h2>
               <span
                 className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`}
                 title={connected ? "Connected" : "Disconnected"}
@@ -298,12 +344,20 @@ const SnippetDetail = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">No live comments yet.</p>
               )}
             </div>
+            {typingUsers.length > 0 && (
+              <p className="mb-2 text-xs italic text-gray-400 dark:text-gray-500">
+                {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing...
+              </p>
+            )}
             {user && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={commentDraft}
-                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onChange={(e) => {
+                    setCommentDraft(e.target.value);
+                    notifyTyping();
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && commentDraft.trim()) {
                       sendComment(commentDraft);

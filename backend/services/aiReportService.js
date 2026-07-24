@@ -1,4 +1,4 @@
-const OpenAI = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Thrown for any AI-analysis failure (missing key, bad input, malformed AI
 // response, etc). The controller maps `status` to an HTTP status code and
@@ -14,11 +14,11 @@ class AIAnalysisError extends Error {
 
 let client = null;
 const getClient = () => {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new AIAnalysisError("AI analysis is not configured on the server (missing OPENAI_API_KEY)", 500);
+  if (!process.env.GEMINI_API_KEY) {
+    throw new AIAnalysisError("AI analysis is not configured on the server (missing GEMINI_API_KEY)", 500);
   }
   if (!client) {
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
   return client;
 };
@@ -90,7 +90,7 @@ const validateAndNormalize = (parsed) => {
   };
 };
 
-// Calls the OpenAI API to analyze a snippet's code and returns a validated,
+// Calls the Gemini API to analyze a snippet's code and returns a validated,
 // normalized analysis object ready to be stored as an AIReport.
 // Throws AIAnalysisError for empty/binary input or any failure to get a
 // valid, schema-conforming response from the model.
@@ -109,27 +109,26 @@ const generateAnalysis = async (snippet) => {
     ? `${code.slice(0, MAX_CODE_LENGTH)}\n/* ...truncated for analysis... */`
     : code;
 
-  const openai = getClient();
-
-  let completion;
-  try {
-    completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+  const genAI = getClient();
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    systemInstruction: SYSTEM_PROMPT,
+    generationConfig: {
       temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Language: ${snippet.language || "unknown"}\n\nAnalyze this code snippet:\n\n${truncatedCode}`,
-        },
-      ],
-    });
+      responseMimeType: "application/json",
+    },
+  });
+
+  let result;
+  try {
+    result = await model.generateContent(
+      `Language: ${snippet.language || "unknown"}\n\nAnalyze this code snippet:\n\n${truncatedCode}`
+    );
   } catch (err) {
     throw new AIAnalysisError(`AI service request failed: ${err.message}`, 502);
   }
 
-  const raw = completion.choices?.[0]?.message?.content;
+  const raw = result?.response?.text?.();
   if (!raw) {
     throw new AIAnalysisError("AI service returned an empty response", 502);
   }
