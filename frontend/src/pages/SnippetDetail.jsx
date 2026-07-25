@@ -32,7 +32,7 @@ const getQualityLabelStyle = (overall) => {
 
 const SnippetDetail = () => {
   const { id } = useParams();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
 
@@ -46,7 +46,7 @@ const SnippetDetail = () => {
   const [reportError, setReportError] = useState(null);
 
   const { reviews, loading: reviewsLoading, error: reviewsError, refetch: refetchReviews } = useReviews(id);
-  const { comments, connected, sendComment, typingUsers, activeUsers, notifyTyping } = useLiveComments(id, user?.username, token);
+  const { comments, connected, sendComment } = useLiveComments(id, user?.username);
 
   const [reviewForm, setReviewForm] = useState({ comment: "", rating: 5 });
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
@@ -320,14 +320,7 @@ const SnippetDetail = () => {
 
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">
-                Live comments
-                {activeUsers.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
-                    {activeUsers.length} active
-                  </span>
-                )}
-              </h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Live comments</h2>
               <span
                 className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`}
                 title={connected ? "Connected" : "Disconnected"}
@@ -344,20 +337,12 @@ const SnippetDetail = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">No live comments yet.</p>
               )}
             </div>
-            {typingUsers.length > 0 && (
-              <p className="mb-2 text-xs italic text-gray-400 dark:text-gray-500">
-                {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing...
-              </p>
-            )}
             {user && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={commentDraft}
-                  onChange={(e) => {
-                    setCommentDraft(e.target.value);
-                    notifyTyping();
-                  }}
+                  onChange={(e) => setCommentDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && commentDraft.trim()) {
                       sendComment(commentDraft);

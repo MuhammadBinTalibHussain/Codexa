@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
 // Thrown for any AI-analysis failure (missing key, bad input, malformed AI
 // response, etc). The controller maps `status` to an HTTP status code and
@@ -18,12 +18,16 @@ const getClient = () => {
     throw new AIAnalysisError("AI analysis is not configured on the server (missing GEMINI_API_KEY)", 500);
   }
   if (!client) {
-    client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   }
   return client;
 };
 
 const MAX_CODE_LENGTH = 12000; // guard against oversized payloads / runaway token cost
+// Using the "-latest" alias instead of a pinned version (e.g. "gemini-2.5-flash")
+// so this keeps working automatically as Google retires older model versions —
+// Google points this alias at their current recommended Flash model.
+const MODEL = "gemini-flash-latest";
 
 const SYSTEM_PROMPT = `You are a senior software engineer acting as an automated code quality analyzer.
 
@@ -109,26 +113,24 @@ const generateAnalysis = async (snippet) => {
     ? `${code.slice(0, MAX_CODE_LENGTH)}\n/* ...truncated for analysis... */`
     : code;
 
-  const genAI = getClient();
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: "application/json",
-    },
-  });
+  const ai = getClient();
 
-  let result;
+  let response;
   try {
-    result = await model.generateContent(
-      `Language: ${snippet.language || "unknown"}\n\nAnalyze this code snippet:\n\n${truncatedCode}`
-    );
+    response = await ai.models.generateContent({
+      model: MODEL,
+      contents: `Language: ${snippet.language || "unknown"}\n\nAnalyze this code snippet:\n\n${truncatedCode}`,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
+    });
   } catch (err) {
     throw new AIAnalysisError(`AI service request failed: ${err.message}`, 502);
   }
 
-  const raw = result?.response?.text?.();
+  const raw = response?.text;
   if (!raw) {
     throw new AIAnalysisError("AI service returned an empty response", 502);
   }
