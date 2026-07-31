@@ -2,6 +2,7 @@ const AIReport = require("../models/AIReport");
 const Snippet = require("../models/Snippet");
 const asyncHandler = require("../utils/asyncHandler");
 const { generateAnalysis, AIAnalysisError } = require("../services/aiReportService");
+const notify = require("../utils/notify");
 
 // @route  GET /api/reports/snippet/:id
 const getReportForSnippet = asyncHandler(async (req, res) => {
@@ -36,6 +37,15 @@ const generateReport = asyncHandler(async (req, res) => {
         { snippet: snippet._id, ...analysis },
         { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+
+    await notify({
+        recipientId: snippet.author,
+        actorId: req.user._id,
+        type: "ai-report",
+        message: `An AI report has been generated for your snippet "${snippet.title}"`,
+        link: `/snippets/${snippet._id}`,
+    });
+
     res.status(201).json({ status: "success", data: report, message: "AI report generated successfully" });
 });
 

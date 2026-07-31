@@ -20,6 +20,7 @@ const NavBar = () => {
         { to: "/snippets/new", label: "New Snippet" },
         { to: "/dashboard", label: "Dashboard" },
         { to: "/profile", label: "Profile" },
+        ...(user.role === "admin" ? [{ to: "/admin/analytics", label: "Analytics" }] : []),
       ]
     : [
         { to: "/login", label: "Login" },

@@ -1,6 +1,7 @@
 const Review = require("../models/Review");
 const Snippet = require("../models/Snippet");
 const asyncHandler = require("../utils/asyncHandler");
+const notify = require("../utils/notify");
 
 // @route  GET /api/reviews/snippet/:id
 const getReviewsForSnippet = asyncHandler(async (req, res) => {
@@ -19,6 +20,15 @@ const createReview = asyncHandler(async (req, res) => {
   }
   const review = await Review.create({ snippet: snippetId, reviewer: req.user._id, comment, rating });
   const populated = await review.populate("reviewer", "username email");
+
+  await notify({
+    recipientId: snippet.author,
+    actorId: req.user._id,
+    type: "review",
+    message: `${req.user.username} reviewed your snippet "${snippet.title}"`,
+    link: `/snippets/${snippetId}`,
+  });
+
   res.status(201).json({ status: "success", data: populated, message: "Review created successfully" });
 });
 
