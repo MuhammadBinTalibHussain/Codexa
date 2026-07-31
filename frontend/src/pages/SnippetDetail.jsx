@@ -13,8 +13,6 @@ import ReviewCard from "../components/ReviewCard";
 import ScoreBar from "../components/ScoreBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
-import ConfirmModal from "../components/ConfirmModal";
-import useToast from "../hooks/useToast";
 
 // Maps an overall AI score to a plain-language quality label, per the
 // Week 5 spec (e.g. Good, Needs Improvement, Poor).
@@ -34,7 +32,7 @@ const getQualityLabelStyle = (overall) => {
 
 const SnippetDetail = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
 
@@ -48,18 +46,12 @@ const SnippetDetail = () => {
   const [reportError, setReportError] = useState(null);
 
   const { reviews, loading: reviewsLoading, error: reviewsError, refetch: refetchReviews } = useReviews(id);
-  const { comments, connected, sendComment } = useLiveComments(id, user?.username);
-  const { showToast } = useToast();
+  const { comments, connected, sendComment, typingUsers, activeUsers, notifyTyping } = useLiveComments(id, user?.username, token);
 
   const [reviewForm, setReviewForm] = useState({ comment: "", rating: 5 });
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewFormError, setReviewFormError] = useState(null);
   const [commentDraft, setCommentDraft] = useState("");
-
-  const [deleteSnippetOpen, setDeleteSnippetOpen] = useState(false);
-  const [deletingSnippet, setDeletingSnippet] = useState(false);
-  const [reviewToDeleteId, setReviewToDeleteId] = useState(null);
-  const [deletingReview, setDeletingReview] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -108,7 +100,6 @@ const SnippetDetail = () => {
       });
       setReviewForm({ comment: "", rating: 5 });
       refetchReviews();
-      showToast("Review submitted", "success");
     } catch (err) {
       setReviewFormError(err.response?.data?.message || "Failed to submit review");
     } finally {
@@ -140,44 +131,20 @@ const SnippetDetail = () => {
     try {
       const { data } = await reportService.generate(id);
       setReport(data);
-      showToast("AI report generated", "success");
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to generate AI report";
-      setReportError(message);
-      showToast(message, "error");
+      setReportError(err.response?.data?.message || "Failed to generate AI report");
     } finally {
       setReportGenerating(false);
     }
   };
 
-  const confirmDeleteSnippet = async () => {
-    setDeletingSnippet(true);
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this snippet? This cannot be undone.")) return;
     try {
       await snippetService.remove(id);
-      showToast("Snippet deleted", "success");
       navigate("/dashboard");
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to delete snippet";
-      setSnippetError(message);
-      showToast(message, "error");
-      setDeletingSnippet(false);
-      setDeleteSnippetOpen(false);
-    }
-  };
-
-  const requestDeleteReview = (reviewId) => setReviewToDeleteId(reviewId);
-
-  const confirmDeleteReview = async () => {
-    setDeletingReview(true);
-    try {
-      await reviewService.remove(reviewToDeleteId);
-      await refetchReviews();
-      showToast("Review deleted", "success");
-    } catch (err) {
-      showToast(err.response?.data?.message || "Failed to delete review", "error");
-    } finally {
-      setDeletingReview(false);
-      setReviewToDeleteId(null);
+      setSnippetError(err.response?.data?.message || "Failed to delete snippet");
     }
   };
 
@@ -213,7 +180,7 @@ const SnippetDetail = () => {
             </Link>
             <button
               type="button"
-              onClick={() => setDeleteSnippetOpen(true)}
+              onClick={handleDelete}
               className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
             >
               Delete
@@ -246,7 +213,6 @@ const SnippetDetail = () => {
                   review={r}
                   onMarkHelpful={handleMarkHelpful}
                   onMarkUnhelpful={handleMarkUnhelpful}
-                  onDelete={requestDeleteReview}
                   currentUserId={user?.id}
                 />
               ))}
@@ -354,7 +320,14 @@ const SnippetDetail = () => {
 
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Live comments</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+                Live comments
+                {activeUsers.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
+                    {activeUsers.length} active
+                  </span>
+                )}
+              </h2>
               <span
                 className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`}
                 title={connected ? "Connected" : "Disconnected"}
@@ -371,12 +344,20 @@ const SnippetDetail = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">No live comments yet.</p>
               )}
             </div>
+            {typingUsers.length > 0 && (
+              <p className="mb-2 text-xs italic text-gray-400 dark:text-gray-500">
+                {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing...
+              </p>
+            )}
             {user && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={commentDraft}
-                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onChange={(e) => {
+                    setCommentDraft(e.target.value);
+                    notifyTyping();
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && commentDraft.trim()) {
                       sendComment(commentDraft);
@@ -403,26 +384,6 @@ const SnippetDetail = () => {
           </div>
         </div>
       </div>
-
-      <ConfirmModal
-        open={deleteSnippetOpen}
-        title="Delete this snippet?"
-        message="This will permanently delete the snippet and cannot be undone."
-        confirmLabel="Delete snippet"
-        loading={deletingSnippet}
-        onConfirm={confirmDeleteSnippet}
-        onCancel={() => setDeleteSnippetOpen(false)}
-      />
-
-      <ConfirmModal
-        open={Boolean(reviewToDeleteId)}
-        title="Delete this review?"
-        message="This will permanently delete your review and cannot be undone."
-        confirmLabel="Delete review"
-        loading={deletingReview}
-        onConfirm={confirmDeleteReview}
-        onCancel={() => setReviewToDeleteId(null)}
-      />
     </div>
   );
 };

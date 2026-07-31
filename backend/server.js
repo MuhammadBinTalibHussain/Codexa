@@ -8,7 +8,7 @@ const authRoutes = require("./routes/authRoutes");
 const snippetRoutes = require("./routes/snippetRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const aiReportRoutes = require("./routes/aiReportRoutes");
-const analyticsRoutes = require("./routes/analyticsRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const apiLimiter = require("./middleware/rateLimiter");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
@@ -30,7 +30,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/snippets", snippetRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/reports", aiReportRoutes);
-app.use("/api/analytics", analyticsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
