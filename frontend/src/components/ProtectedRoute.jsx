@@ -2,11 +2,12 @@ import { Navigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import LoadingSpinner from "./LoadingSpinner";
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, authLoading } = useAuth();
 
   if (authLoading) return <LoadingSpinner label="Checking your session..." />;
   if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== "admin") return <Navigate to="/dashboard" replace />;
 
   return children;
 };

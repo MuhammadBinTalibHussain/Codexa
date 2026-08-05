@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider } from "./context/ToastContext";
+import ToastContainer from "./components/ToastContainer";
 import NavBar from "./components/NavBar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
@@ -10,13 +12,16 @@ import Dashboard from "./pages/Dashboard";
 import SnippetDetail from "./pages/SnippetDetail";
 import SnippetForm from "./pages/SnippetForm";
 import Profile from "./pages/Profile";
+import AdminAnalytics from "./pages/AdminAnalytics";
 
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <NavBar />
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <NavBar />
+            <ToastContainer />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -54,9 +59,18 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminAnalytics />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
