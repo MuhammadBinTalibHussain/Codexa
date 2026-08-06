@@ -1,10 +1,11 @@
 // Single peer review row: rating, comment, like/dislike buttons.
-const ReviewCard = ({ review, onMarkHelpful, onMarkUnhelpful, currentUserId }) => {
+const ReviewCard = ({ review, onMarkHelpful, onMarkUnhelpful, onDelete, currentUserId }) => {
   const myVote = currentUserId
     ? review.voters?.find((v) => v.user === currentUserId || v.user?._id === currentUserId)?.vote
     : null;
   const isHelpfulActive = myVote === "helpful";
   const isUnhelpfulActive = myVote === "unhelpful";
+  const isOwner = currentUserId && (review.reviewer?._id === currentUserId || review.reviewer === currentUserId);
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -38,6 +39,15 @@ const ReviewCard = ({ review, onMarkHelpful, onMarkUnhelpful, currentUserId }) =
         >
           👎 Dislike ({review.unhelpfulVotes ?? 0})
         </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => onDelete?.(review._id)}
+            className="ml-auto rounded-full px-2 py-1 text-xs font-medium text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-950 dark:hover:text-red-400"
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );
