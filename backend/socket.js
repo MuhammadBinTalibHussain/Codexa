@@ -13,8 +13,12 @@ const getRoomUserList = (room) => {
   return users ? Array.from(users.values()) : [];
 };
 
-const initSocket = (httpServer) => {
-  const io = new Server(httpServer, { cors: { origin: "*" } });
+const initSocket = (httpServer, allowedOrigins) => {
+  // Falls back to allowing any origin only if the caller didn't pass
+  // restricted origins (keeps local/manual testing simple).
+  const io = new Server(httpServer, {
+    cors: { origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : "*" },
+  });
 
   // Require a valid JWT before a socket connection is accepted at all,
   // per "Socket connections require a valid JWT for authentication before

@@ -9,6 +9,7 @@ const snippetRoutes = require("./routes/snippetRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const aiReportRoutes = require("./routes/aiReportRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
 
 const apiLimiter = require("./middleware/rateLimiter");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
@@ -18,7 +19,15 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+// CLIENT_URL supports one or more comma-separated origins, e.g.
+// "https://your-app.vercel.app,http://localhost:5173" so local dev keeps
+// working alongside the deployed frontend. Falls back to allowing the
+// typical local Vite dev server if CLIENT_URL isn't set.
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim());
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(apiLimiter);
 
@@ -31,6 +40,7 @@ app.use("/api/snippets", snippetRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/reports", aiReportRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -38,7 +48,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 const httpServer = http.createServer(app);
-initSocket(httpServer);
+initSocket(httpServer, allowedOrigins);
 
 const startServer = async () => {
   await connectDB();
