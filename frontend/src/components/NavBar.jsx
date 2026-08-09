@@ -17,12 +17,14 @@ const NavBar = () => {
 
   const links = user
     ? [
+        { to: "/explore", label: "Explore" },
         { to: "/snippets/new", label: "New Snippet" },
         { to: "/dashboard", label: "Dashboard" },
         { to: "/profile", label: "Profile" },
         ...(user.role === "admin" ? [{ to: "/admin/analytics", label: "Analytics" }] : []),
       ]
     : [
+        { to: "/explore", label: "Explore" },
         { to: "/login", label: "Login" },
         { to: "/register", label: "Register" },
       ];

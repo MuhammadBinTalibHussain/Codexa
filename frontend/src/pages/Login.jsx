@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import ErrorBanner from "../components/ErrorBanner";
+import PasswordInput from "../components/PasswordInput";
 
 const Login = () => {
   const { login } = useAuth();
@@ -21,6 +22,7 @@ const Login = () => {
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Check your credentials.");
+      setForm((f) => ({ ...f, password: "" }));
     } finally {
       setSubmitting(false);
     }
@@ -47,15 +49,20 @@ const Login = () => {
         </label>
 
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-          Password
-          <input
-            type="password"
+          <div className="flex items-center justify-between">
+            <span>Password</span>
+            <Link
+              to="/forgot-password"
+              className="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <PasswordInput
             name="password"
             required
             value={form.password}
             onChange={handleChange}
-            placeholder="••••••••"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           />
         </label>
 

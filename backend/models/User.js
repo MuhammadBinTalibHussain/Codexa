@@ -26,6 +26,17 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+    // Forgot-password flow: a hashed, short-lived token. Never store the
+    // raw token — only its SHA-256 hash — so a database leak alone can't
+    // be used to reset anyone's password.
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

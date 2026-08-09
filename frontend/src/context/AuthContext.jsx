@@ -47,6 +47,16 @@ export const AuthProvider = ({ children }) => {
     return authService.register(username, email, password);
   }, []);
 
+  // Lets flows that already have a fresh { user, token } from the backend
+  // (e.g. right after a successful password reset) log the person in
+  // without re-submitting credentials through the normal login endpoint.
+  const setSession = useCallback((newUser, newToken) => {
+    setUser(newUser);
+    setToken(newToken);
+    localStorage.setItem("codexa_token", newToken);
+    localStorage.setItem("codexa_user", JSON.stringify(newUser));
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
@@ -56,7 +66,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, authLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, authLoading, login, register, logout, setSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import ErrorBanner from "../components/ErrorBanner";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
+import PasswordInput from "../components/PasswordInput";
 
 const Register = () => {
   const { register } = useAuth();
@@ -61,16 +63,15 @@ const Register = () => {
 
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
           Password
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             required
             minLength={6}
             value={form.password}
             onChange={handleChange}
             placeholder="At least 6 characters"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           />
+          <PasswordStrengthMeter password={form.password} />
         </label>
 
         <button

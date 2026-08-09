@@ -6,8 +6,11 @@ import ToastContainer from "./components/ToastContainer";
 import NavBar from "./components/NavBar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
+import RootRedirect from "./components/RootRedirect";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import SnippetDetail from "./pages/SnippetDetail";
 import SnippetForm from "./pages/SnippetForm";
@@ -23,9 +26,12 @@ function App() {
             <NavBar />
             <ToastContainer />
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/explore" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/snippets/:id" element={<SnippetDetail />} />
             <Route
               path="/snippets/new"

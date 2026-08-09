@@ -3,12 +3,59 @@ const Snippet = require("../models/Snippet");
 const asyncHandler = require("../utils/asyncHandler");
 const { ALLOWED_LANGUAGES } = require("../middleware/validators");
 
-// @route  GET /api/snippets
+// Shared aggregation stages that enrich each snippet with reviewCount,
+// hasReport, and aiScore in a single query — this is what eliminates the
+// old N+1 pattern where the frontend fired 2 extra requests PER snippet.
+const enrichmentStages = [
+  { $lookup: { from: "reviews", localField: "_id", foreignField: "snippet", as: "reviews" } },
+  { $lookup: { from: "aireports", localField: "_id", foreignField: "snippet", as: "report" } },
+  { $lookup: { from: "users", localField: "author", foreignField: "_id", as: "author" } },
+  { $unwind: "$author" },
+  {
+    $project: {
+      title: 1,
+      code: 1,
+      language: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      author: { _id: "$author._id", username: "$author.username", email: "$author.email", role: "$author.role" },
+      reviewCount: { $size: "$reviews" },
+      hasReport: { $gt: [{ $size: "$report" }, 0] },
+      aiScore: { $arrayElemAt: ["$report.overall", 0] },
+    },
+  },
+];
+
+// @route  GET /api/snippets?page=1&limit=12
+// Paginated + enriched (reviewCount/hasReport/aiScore precomputed) so the
+// frontend never needs to loop per-snippet requests, and never has to load
+// every snippet in the database at once.
 const getSnippets = asyncHandler(async (req, res) => {
-  const snippets = await Snippet.find()
-    .populate("author", "username email role")
-    .sort({ createdAt: -1 });
-  res.status(200).json({ status: "success", data: snippets, message: "Snippets fetched successfully" });
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 12));
+  const skip = (page - 1) * limit;
+
+  const [snippets, totalCount] = await Promise.all([
+    Snippet.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      ...enrichmentStages,
+    ]),
+    Snippet.countDocuments(),
+  ]);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      snippets,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(totalCount / limit)),
+      totalCount,
+    },
+    message: "Snippets fetched successfully",
+  });
 });
 
 // @route  GET /api/snippets/:id
@@ -21,13 +68,19 @@ const getSnippetById = asyncHandler(async (req, res) => {
 });
 
 // @route  GET /api/snippets/user/:userId
+// Not paginated (a single user's own submissions is a naturally small,
+// bounded list), but still enriched the same way to avoid N+1 lookups.
 const getSnippetsByUser = asyncHandler(async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
     return res.status(400).json({ status: "error", data: null, message: "Invalid userId" });
   }
-  const snippets = await Snippet.find({ author: req.params.userId })
-    .populate("author", "username email role")
-    .sort({ createdAt: -1 });
+
+  const snippets = await Snippet.aggregate([
+    { $match: { author: new mongoose.Types.ObjectId(req.params.userId) } },
+    { $sort: { createdAt: -1 } },
+    ...enrichmentStages,
+  ]);
+
   res.status(200).json({ status: "success", data: snippets, message: "User snippets fetched successfully" });
 });
 

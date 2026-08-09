@@ -6,6 +6,7 @@ import useAuth from "../hooks/useAuth";
 import useTheme from "../hooks/useTheme";
 import useReviews from "../hooks/useReviews";
 import useLiveComments from "../hooks/useLiveComments";
+import useToast from "../hooks/useToast";
 import snippetService from "../services/snippetService";
 import reviewService from "../services/reviewService";
 import reportService from "../services/reportService";
@@ -13,6 +14,7 @@ import ReviewCard from "../components/ReviewCard";
 import ScoreBar from "../components/ScoreBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import ConfirmModal from "../components/ConfirmModal";
 
 // Maps an overall AI score to a plain-language quality label, per the
 // Week 5 spec (e.g. Good, Needs Improvement, Poor).
@@ -35,6 +37,7 @@ const SnippetDetail = () => {
   const { user, token } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [snippet, setSnippet] = useState(null);
   const [snippetLoading, setSnippetLoading] = useState(true);
@@ -52,6 +55,11 @@ const SnippetDetail = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewFormError, setReviewFormError] = useState(null);
   const [commentDraft, setCommentDraft] = useState("");
+
+  const [deleteSnippetOpen, setDeleteSnippetOpen] = useState(false);
+  const [deletingSnippet, setDeletingSnippet] = useState(false);
+  const [reviewToDeleteId, setReviewToDeleteId] = useState(null);
+  const [deletingReview, setDeletingReview] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -100,6 +108,7 @@ const SnippetDetail = () => {
       });
       setReviewForm({ comment: "", rating: 5 });
       refetchReviews();
+      showToast("Review submitted", "success");
     } catch (err) {
       setReviewFormError(err.response?.data?.message || "Failed to submit review");
     } finally {
@@ -131,20 +140,44 @@ const SnippetDetail = () => {
     try {
       const { data } = await reportService.generate(id);
       setReport(data);
+      showToast("AI report generated", "success");
     } catch (err) {
-      setReportError(err.response?.data?.message || "Failed to generate AI report");
+      const message = err.response?.data?.message || "Failed to generate AI report";
+      setReportError(message);
+      showToast(message, "error");
     } finally {
       setReportGenerating(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Delete this snippet? This cannot be undone.")) return;
+  const confirmDeleteSnippet = async () => {
+    setDeletingSnippet(true);
     try {
       await snippetService.remove(id);
+      showToast("Snippet deleted", "success");
       navigate("/dashboard");
     } catch (err) {
-      setSnippetError(err.response?.data?.message || "Failed to delete snippet");
+      const message = err.response?.data?.message || "Failed to delete snippet";
+      setSnippetError(message);
+      showToast(message, "error");
+      setDeletingSnippet(false);
+      setDeleteSnippetOpen(false);
+    }
+  };
+
+  const requestDeleteReview = (reviewId) => setReviewToDeleteId(reviewId);
+
+  const confirmDeleteReview = async () => {
+    setDeletingReview(true);
+    try {
+      await reviewService.remove(reviewToDeleteId);
+      await refetchReviews();
+      showToast("Review deleted", "success");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to delete review", "error");
+    } finally {
+      setDeletingReview(false);
+      setReviewToDeleteId(null);
     }
   };
 
@@ -159,6 +192,12 @@ const SnippetDetail = () => {
   if (!snippet) return null;
 
   const isAuthor = user && user.id === snippet.author?._id;
+  const isAdmin = user?.role === "admin";
+  // Admin moderation: an admin can delete anyone's snippet, not just edit
+  // their own. Editing content stays author-only (an admin overwriting
+  // someone else's code isn't "moderation", it's a different, riskier
+  // action we're intentionally not enabling here).
+  const canDeleteSnippet = isAuthor || isAdmin;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -170,21 +209,25 @@ const SnippetDetail = () => {
             {new Date(snippet.createdAt).toLocaleDateString()}
           </p>
         </div>
-        {isAuthor && (
+        {(isAuthor || isAdmin) && (
           <div className="flex shrink-0 gap-2">
-            <Link
-              to={`/snippets/${id}/edit`}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              Edit
-            </Link>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
-            >
-              Delete
-            </button>
+            {isAuthor && (
+              <Link
+                to={`/snippets/${id}/edit`}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Edit
+              </Link>
+            )}
+            {canDeleteSnippet && (
+              <button
+                type="button"
+                onClick={() => setDeleteSnippetOpen(true)}
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
+              >
+                {isAdmin && !isAuthor ? "Delete (admin)" : "Delete"}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -213,7 +256,9 @@ const SnippetDetail = () => {
                   review={r}
                   onMarkHelpful={handleMarkHelpful}
                   onMarkUnhelpful={handleMarkUnhelpful}
+                  onDelete={requestDeleteReview}
                   currentUserId={user?.id}
+                  isAdmin={isAdmin}
                 />
               ))}
               {reviews.length === 0 && (
@@ -384,6 +429,30 @@ const SnippetDetail = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={deleteSnippetOpen}
+        title="Delete this snippet?"
+        message={
+          isAdmin && !isAuthor
+            ? "You're deleting this as an admin — it's not your snippet. This cannot be undone."
+            : "This will permanently delete the snippet and cannot be undone."
+        }
+        confirmLabel="Delete snippet"
+        loading={deletingSnippet}
+        onConfirm={confirmDeleteSnippet}
+        onCancel={() => setDeleteSnippetOpen(false)}
+      />
+
+      <ConfirmModal
+        open={Boolean(reviewToDeleteId)}
+        title="Delete this review?"
+        message="This will permanently delete this review and cannot be undone."
+        confirmLabel="Delete review"
+        loading={deletingReview}
+        onConfirm={confirmDeleteReview}
+        onCancel={() => setReviewToDeleteId(null)}
+      />
     </div>
   );
 };
