@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import useAuth from "../hooks/useAuth";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
 
 // Top navigation bar. Collapses into a hamburger menu below the `sm`
 // breakpoint per the Week 4 responsive-design spec (mobile < 640px).
@@ -48,6 +49,7 @@ const NavBar = () => {
             </Link>
           ))}
           <ThemeToggle />
+          <NotificationBell enabled={Boolean(user)} />
           {user && (
             <button
               type="button"
@@ -62,6 +64,7 @@ const NavBar = () => {
         {/* Mobile controls */}
         <div className="flex items-center gap-1 sm:hidden">
           <ThemeToggle />
+          <NotificationBell enabled={Boolean(user)} />
           <button
             type="button"
             className="rounded-md p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"

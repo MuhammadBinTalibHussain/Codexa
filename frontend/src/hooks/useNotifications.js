@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import notificationService from "../services/notificationService";
 
-const POLL_INTERVAL_MS = 30000;
+const POLL_INTERVAL_MS = 60000; // raised from 30s -> 60s to reduce background request volume
 
 const useNotifications = (enabled) => {
   const [notifications, setNotifications] = useState([]);

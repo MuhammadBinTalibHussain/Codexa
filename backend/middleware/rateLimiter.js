@@ -1,9 +1,13 @@
 const rateLimit = require("express-rate-limit");
 
-// 100 requests per 15 minutes per IP, applied globally in server.js
+// 300 requests per 15 minutes per IP, applied globally in server.js.
+// Raised from 100 -> 300 because normal usage now includes background
+// polling (notifications every 30-60s) plus regular navigation, which adds
+// up quickly during active use — 100 was tripping for real, legitimate
+// traffic, not just abuse.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -14,7 +18,8 @@ const apiLimiter = rateLimit({
 });
 
 // Tighter limit for login/register specifically, to slow down credential
-// stuffing / brute-force attempts against auth endpoints.
+// stuffing / brute-force attempts against auth endpoints. Left unchanged —
+// this one is actually protecting something, unlike the general limit.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
