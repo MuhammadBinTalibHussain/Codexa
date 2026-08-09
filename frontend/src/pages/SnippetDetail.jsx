@@ -15,6 +15,7 @@ import ScoreBar from "../components/ScoreBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 import ConfirmModal from "../components/ConfirmModal";
+import CopyButton from "../components/CopyButton";
 
 // Maps an overall AI score to a plain-language quality label, per the
 // Week 5 spec (e.g. Good, Needs Improvement, Poor).
@@ -235,14 +236,17 @@ const SnippetDetail = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Code + reviews: 2/3 on desktop, full width below */}
         <div className="lg:col-span-2">
-          <div className="scroll-thin mb-6 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-            <SyntaxHighlighter
-              language={snippet.language}
-              style={theme === "dark" ? oneDark : oneLight}
-              customStyle={{ margin: 0 }}
-            >
-              {snippet.code}
-            </SyntaxHighlighter>
+          <div className="relative mb-6 rounded-xl border border-gray-200 dark:border-gray-700">
+            <CopyButton text={snippet.code} className="absolute right-2 top-2 z-10" />
+            <div className="scroll-thin overflow-x-auto rounded-xl">
+              <SyntaxHighlighter
+                language={snippet.language}
+                style={theme === "dark" ? oneDark : oneLight}
+                customStyle={{ margin: 0 }}
+              >
+                {snippet.code}
+              </SyntaxHighlighter>
+            </div>
           </div>
 
           <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Reviews</h2>
