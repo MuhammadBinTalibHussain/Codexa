@@ -19,10 +19,7 @@ dotenv.config();
 
 const app = express();
 
-// CLIENT_URL supports one or more comma-separated origins, e.g.
-// "https://your-app.vercel.app,http://localhost:5173" so local dev keeps
-// working alongside the deployed frontend. Falls back to allowing the
-// typical local Vite dev server if CLIENT_URL isn't set.
+
 const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
   .split(",")
   .map((origin) => origin.trim());
